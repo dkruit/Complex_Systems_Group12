@@ -1,7 +1,7 @@
 # Complex Systems Group 12 Project
 
 ## Research Question
-In 2017 Tesla built the largest battery in the world in South Australia [1]. The goal of this 100 MW battery is to reduce power blackouts and stabilize the grid. The magnitude of blackouts is known to have a power law tail [2]. We want to study how a large battery affects the critcial load of the system and the exponent of the power law.
+In 2017 Tesla built the largest battery in the world in South Australia [1]. The goal of this 100 MW battery is to reduce power blackouts and stabilize the grid by supplying or absorb burst of energy very quickly. The magnitude of blackouts is known to have a power law tail [2]. We want to study how a large battery affects the critcial load of the system and the exponent of the power law.
 
 ## Method
 We will implement the ORNL-PSerc-Alaska (OPL) model [3,4]. This model was designed to study the complex behavior of the dynamics of series of blackouts. The researches we demonstrated self-organization of the system to a critical point at which the probability distribution of blackout size resembles real world data from the North American Electric Reliability Corporation.
