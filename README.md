@@ -6,7 +6,7 @@ In 2017 Tesla built the largest battery in the world in South Australia [1]. The
 ## Method
 We will implement the ORNL-PSerc-Alaska (OPL) model [3,4]. This model was designed to study the complex behavior of the dynamics of series of blackouts. The researches we demonstrated self-organization of the system to a critical point at which the probability distribution of blackout size resembles real world data from the North American Electric Reliability Corporation.
 
-We first aim to implement the model and replicate results in from [4] and [5]. Then we want to add a large stabilizing battery to the network and compare the network with and without battery.
+We first aim to implement the model and replicate results in papers [4] and [5]. Then we want to add a large stabilizing battery to the network and compare the network with and without battery.
 
 
 ## References
