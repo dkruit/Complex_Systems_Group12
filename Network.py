@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 
 
 class Network:
-    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.05):
+    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.05, labda=(1.0005, 0.0005)):
         """
         Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
         nodes.
@@ -11,7 +11,10 @@ class Network:
         :param generator_layer: Layer which contains the generators
         :param generator_P_max: Maximum power of one generator
         :param margin_F_max: F_max on day 0 is F_0 * margin_F_max
+        :param labda: Mean and standard deviation of average daily power change
         """
+        # Set parameters
+        self.labda = labda
 
         # Initialize network
         self.n_layers = n_layers
@@ -29,8 +32,8 @@ class Network:
         self.P_max = generator_P_max
         self.P = self.set_p0(self.P_max)
         self.F = self.A.dot(self.P)
-        self.F_max = self.F * margin_F_max
-        self.M = self.F / self.F_max
+        self.F_max = np.abs(self.F * margin_F_max)
+        self.M = np.abs(self.F / self.F_max)
 
     ####################################################################################################################
     # Functions for initialization
@@ -139,35 +142,55 @@ class Network:
         """
         Update P using lambda
         """
-        pass
+        l = np.random.normal(self.labda[0], self.labda[1])
+        self.P *= l
+        self.P_max *= l
 
-    def h0(self):
+    def h0(self, overload_fraction):
         """
         Compute probability of initial failure
         """
-        pass
+        return 0.01 * overload_fraction**2
 
-    def h1(self):
+    def h1(self, overload_fraction):
         """
         Compute probability of failure due to overload
         """
-        pass
+        return 0.5 * overload_fraction**2
 
     def initial_failures(self):
         """
         Compute initial failures using h0
+        :return: List of ids and connected nodes of failed lines
         """
-        pass
+        line_indices = []
+        connected_nodes = []
+        for i, line in enumerate(self.lines):
+            p = self.h0(self.M[i])
+            if p > np.random.uniform(0, 1):
+                line_indices.append(i)
+                connected_nodes.append(line)
+        return line_indices, connected_nodes
 
     def overload_failures(self):
         """
         Compute secondary failures due to overload
+        :return: List of failed lines
         """
-        pass
+        line_indices = []
+        connected_nodes = []
+        for i, line in enumerate(self.lines):
+            p = self.h1(self.M[i])
+            if p > np.random.uniform(0, 1):
+                line_indices.append(i)
+                connected_nodes.append(line)
+        return line_indices, connected_nodes
+    pass
 
     def redispatch_power(self):
         """
         Find new solution to redispatch power after failures occur
+        :return: List of failed lines
         """
         pass
 
@@ -188,7 +211,7 @@ class Network:
         # Slow dynamics
         self.update_P()
         self.F = self.A.dot(self.P)
-        self.M = self.F / self.F_max
+        self.M = np.max(self.F / self.F_max)
 
         self.initial_failures()
         self.redispatch_power()
@@ -223,5 +246,8 @@ class Network:
         plt.show()
 
 
-N = Network(6, 2)
-# N.plot_network()
+N = Network(6, 3)
+for i in range(10):
+    a, b = N.initial_failures()
+    print(a, b)
+N.plot_network()
