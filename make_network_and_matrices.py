@@ -128,6 +128,4 @@ class Network:
         return A
 
 
-N = Network(5, 3)
-print(N.A)
-N.plot_network()
+
