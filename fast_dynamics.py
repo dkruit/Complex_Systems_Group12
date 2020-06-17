@@ -1,4 +1,4 @@
-from make_network_and_matrices import Network
+from Network import Network
 from helpers_slow import power_vector
 import matplotlib.pyplot as plt
 import numpy as np
