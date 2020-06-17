@@ -115,7 +115,8 @@ class Network:
         Computes the adjacency matrix. For now uses susceptence of 1 for all lines.
         :return:
         """
-        B = 3 * np.identity(self.n_nodes) - self.M_adj
+        diagonal = np.sum(self.M_adj, axis=1)
+        B = np.diag(diagonal) - self.M_adj
         return B
 
     def matrix_a(self):
@@ -152,6 +153,6 @@ class Network:
         return power
 
 
-N = Network(4, 2)
+N = Network(6, 2)
 # N.plot_network()
 N.set_p0(10)
