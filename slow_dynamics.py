@@ -25,7 +25,7 @@ mean_lambda = 1 + lambda_increase
 max_lambda = 1 + 2 * lambda_increase
 
 # the nr of days for the simulation
-days = 1000
+days = 3
 
 
 def initialize_model(n_buses, max_P_gen, layers, gen_layer, max_lambda, days):
@@ -72,6 +72,7 @@ def simulation(days, A, P_0, daily_lambda, max_F, F_0):
 		# increase the power in the buses with lambda and update flow
 		P_k = P_k * daily_lambda[k]
 		F_k = A.dot(P_k)
+		# print("P_k is {}, F_k is {}".format(P_k,F_k))
 
 		# below this is all to see if the parameters are good
 		# P_load = []
@@ -100,4 +101,3 @@ def simulation(days, A, P_0, daily_lambda, max_F, F_0):
 	# plt.show()
 
 simulation(days, A, P_0, daily_lambda, max_F, F_0)
-
