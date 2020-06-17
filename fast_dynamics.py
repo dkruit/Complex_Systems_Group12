@@ -1,4 +1,4 @@
-from Network import Network
+from make_network_and_matrices import Network
 from helpers_slow import power_vector
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,8 +19,9 @@ mean_lambda = 1 + lambda_increase
 max_lambda = 1 + 2 * lambda_increase
 
 # #Define M for day k
-#TODO: loop over days to get M
+
 days = 1
+
 # for k in days:
 F_0, A, P_0, daily_lambda, max_F = initialize_model(n_buses, max_P_gen, layers, gen_layer, max_lambda, days)
 
@@ -47,6 +48,9 @@ def simulation(days, A, P_0, daily_lambda, max_F, F_0):
         P_overload_sum = sum(P_outaged)
         P_overload = [abs(i/P_overload_sum) for i in P_overload] #give probabilities
 
+        #Check if outaged and overloaded
+        for i in range(len(P_outaged)):
+            
         print("P_outaged is {},\n P_overload is {},\n".format(P_outaged,P_overload))
 
 
