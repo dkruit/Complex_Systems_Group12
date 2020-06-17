@@ -1,27 +1,34 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-
 class Network:
-    def __init__(self, n_layers, generator_layer=0):
+    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.05):
         """
-            Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
-            nodes.
-            :param n_layers: Number of layers
-            :param generator_layer: Layer which contains the generators
-            """
+        Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
+        nodes.
+        :param n_layers: Number of layers
+        :param generator_layer: Layer which contains the generators
+        :param generator_P_max: Maximum power of one generator
+        :param margin_F_max: F_max on day 0 is F_0 * margin_F_max
+        """
 
         # Initialize network
         self.n_layers = n_layers
         self.n_nodes, self.nodes_per_layer, self.nodes_in_layer = self.make_buses()
-        # print(self.n_nodes)
         self.generators = range(self.nodes_in_layer[generator_layer][0], self.nodes_in_layer[generator_layer][1])
+        self.loads = list(range(self.generators[0])) + list(range(self.generators[-1]+1, self.n_nodes))
         self.lines = self.make_lines()
 
         # Initialize matrices
         self.M_adj = self.adjacency_matrix()
         self.B = self.matrix_b()
         self.A = self.matrix_a()
+
+        # Initialize P, F, Fmax
+        self.P_max = generator_P_max
+        self.P = self.set_p0(self.P_max)
+        self.F = self.A.dot(self.P)
+        self.F_max = self.F * margin_F_max
 
     def make_buses(self):
         #  Compute the number of nodes per layer
@@ -86,11 +93,11 @@ class Network:
         for l in self.lines:
             x_line = [x[l[0]], x[l[1]]]
             y_line = [y[l[0]], y[l[1]]]
-            # plt.plot(x_line, y_line, c='black', zorder=0)
+            plt.plot(x_line, y_line, c='black', zorder=0)
 
-        # plt.scatter(x, y, c='g', linewidths=5, zorder=1)
-        # plt.scatter(x[self.generators], y[self.generators], c='r', linewidths=5, zorder=2)
-        # plt.show()
+        plt.scatter(x, y, c='g', linewidths=5, zorder=1)
+        plt.scatter(x[self.generators], y[self.generators], c='r', linewidths=5, zorder=2)
+        plt.show()
 
     def adjacency_matrix(self):
         """
@@ -126,3 +133,24 @@ class Network:
 
         A = N.dot(X)
         return A
+
+    def set_p0(self, max_generator_power):
+        n_generators = len(self.generators)
+        n_loads = self.n_nodes - n_generators
+        max_load_power = max_generator_power * n_generators / n_loads
+
+        power = np.zeros(self.n_nodes)
+        total_load = 0
+
+        for l in self.loads:
+            power[l] = -np.random.uniform(high=max_load_power)
+            total_load += power[l]
+
+        generator_power = -total_load / n_generators
+        power[self.generators] = generator_power
+        return power
+
+
+N = Network(4, 2)
+# N.plot_network()
+N.set_p0(10)
