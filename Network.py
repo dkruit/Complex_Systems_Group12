@@ -1,6 +1,5 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from itertools import chain
 
 
 class Network:
@@ -113,7 +112,7 @@ class Network:
 
     def matrix_b(self):
         """
-        Computes the adjacency matrix. For now uses susceptence of 1 for all networks.
+        Computes the adjacency matrix. For now uses susceptence of 1 for all lines.
         :return:
         """
         B = 3 * np.identity(self.n_nodes) - self.M_adj
