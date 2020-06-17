@@ -141,12 +141,6 @@ class Network:
         """
         pass
 
-    def compute_M(self):
-        """
-        Compute overload M using M = F / Fmax
-        """
-        pass
-
     def h0(self):
         """
         Compute probability of initial failure
