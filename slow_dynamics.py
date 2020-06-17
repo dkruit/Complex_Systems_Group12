@@ -33,19 +33,18 @@ def initialize_model(n_buses, max_P_gen, layers, gen_layer, max_F):
 		print("SUM P not approx 0 -> ending initialization")
 		exit()
 
-	for value in P_0:
-		print("val", value)
+	# for value in P_0:
+		# print("val", value)
 	# calculate the flow on each line at day 0 based on matrix A and the power vector
 	F_0 = A.dot(P_0)
 
 	for flow in F_0:
-		print(flow)
+		# print(flow)
 		# print(len(flow))
 		if abs(flow) > max_F:
 			print("Flow at day 0 too large -> ending initialization")
 			exit()
 
 	return A, P_0
-
 
 A, P_0 = initialize_model(n_buses, max_P_gen, layers, gen_layer, max_F)

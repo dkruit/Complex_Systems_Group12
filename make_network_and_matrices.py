@@ -14,7 +14,7 @@ class Network:
         # Initialize network
         self.n_layers = n_layers
         self.n_nodes, self.nodes_per_layer, self.nodes_in_layer = self.make_buses()
-        print(self.n_nodes)
+        # print(self.n_nodes)
         self.generators = range(self.nodes_in_layer[generator_layer][0], self.nodes_in_layer[generator_layer][1])
         self.lines = self.make_lines()
 
@@ -88,9 +88,9 @@ class Network:
             y_line = [y[l[0]], y[l[1]]]
             plt.plot(x_line, y_line, c='black', zorder=0)
 
-        plt.scatter(x, y, c='g', linewidths=5, zorder=1)
-        plt.scatter(x[self.generators], y[self.generators], c='r', linewidths=5, zorder=2)
-        plt.show()
+        # plt.scatter(x, y, c='g', linewidths=5, zorder=1)
+        # plt.scatter(x[self.generators], y[self.generators], c='r', linewidths=5, zorder=2)
+        # plt.show()
 
     def adjacency_matrix(self):
         """
@@ -126,6 +126,3 @@ class Network:
 
         A = N.dot(X)
         return A
-
-
-
