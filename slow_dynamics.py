@@ -95,9 +95,9 @@ def simulation(days, A, P_0, daily_lambda, max_F, F_0):
 	# plt.plot(range(0, len(MAX_FLOW)), MAX_FLOW, label = "max")
 	# plt.legend()
 	# plt.show()
-
 	# plt.plot(range(0, len(MAX_OVERLOAD)), MAX_OVERLOAD, label = "max overload")
 	# plt.legend()
 	# plt.show()
 
 simulation(days, A, P_0, daily_lambda, max_F, F_0)
+
