@@ -86,7 +86,7 @@ class Network:
         for l in self.lines:
             x_line = [x[l[0]], x[l[1]]]
             y_line = [y[l[0]], y[l[1]]]
-            plt.plot(x_line, y_line, c='black', zorder=0)
+            # plt.plot(x_line, y_line, c='black', zorder=0)
 
         # plt.scatter(x, y, c='g', linewidths=5, zorder=1)
         # plt.scatter(x[self.generators], y[self.generators], c='r', linewidths=5, zorder=2)
