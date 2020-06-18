@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import linprog
 
 class Network:
-    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.05, labda=(1.0005, 0.0005),
+    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=2, labda=(1.0005, 0.0005),
                  cost_weights=(1, 100)):
         """
         Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
@@ -119,8 +119,8 @@ class Network:
         """
         new_B = np.array(B)
         for nodes in connected_nodes:
-            new_B[nodes[0], nodes[1]] = 0.00001
-            new_B[nodes[1], nodes[0]] = 0.00001
+            new_B[nodes[0], nodes[1]] = -0.0001
+            new_B[nodes[1], nodes[0]] = -0.0001
 
         np.fill_diagonal(new_B, 0)
         diagonal = -np.sum(new_B, axis=1)
@@ -221,25 +221,43 @@ class Network:
         and m loads.
         :return: Flow trough lines
         """
+        # Compute flows without redispatching power
+        F = A.dot(self.P)
+
         # Equality constraint A_eq delta_P = b_eq: sum(delta_P) = 0
         A_eq = np.ones((1, len(self.linprog_c)))
         b_eq = np.array([0.,])
 
         # Inequality constraint: -Fmax - F < A delta_P < Fmax - F
-
         A_ub = np.concatenate((A[:, self.generators],
                                A[:, self.generators],
                                A[:, self.loads]),
                               axis=1)
         A_ub = np.concatenate((-A_ub, A_ub), axis=0)
-        b_ub = np.concatenate((self.F_max + self.F, self.F_max - self.F))
+        b_ub = np.concatenate((self.F_max + F, self.F_max - F))
 
-        sol = linprog(self.linprog_c, A_ub, b_ub, A_eq, b_eq, method='revised simplex')
-        print('KK')
-        print(sol.x)
+        bounds = []
+        for generator in self.generators:
+            bounds.append((0, self.P_max - self.P[generator]))
+        for generator in self.generators:
+            bounds.append((0, self.P[generator]))
+        for load in self.loads:
+            bounds.append((0, -self.P[load]))
 
-        # if sol.success:
-        #     self.P = sol.x
+        sol = linprog(self.linprog_c, A_ub, b_ub, A_eq, b_eq, bounds=bounds, method='revised simplex')
+
+        n_generators = len(self.generators)
+        delta_P_gen = sol.x[0:n_generators] + sol.x[n_generators:2*n_generators]
+        delta_P_load = sol.x[2*n_generators::]
+        print(sol.success, sol.status, sol.fun, sol.nit)
+
+        if sol.success:
+            print(np.concatenate([delta_P_gen, delta_P_load]))
+            self.P = self.P + np.concatenate([delta_P_gen, delta_P_load])
+            F = A.dot(self.P)
+            M = F / self.F_max
+
+            print(M)
         return 1
 
     def improve_lines(self):
@@ -265,7 +283,6 @@ class Network:
         failed_lines = []
         line_ids, linked_nodes = self.initial_failures()
         B = np.array(self.B)
-        print(line_ids)
         while len(line_ids) > 0:
 
             failed_lines.append(line_ids)
@@ -274,8 +291,8 @@ class Network:
             A = self.matrix_a(B)
 
             self.redispatch_power(A)
-            break
-
+            return 1
+        return 0
         # self.improve_lines()
 
     ####################################################################################################################
@@ -314,10 +331,10 @@ class Network:
         plt.show()
 
 
-N = Network(5, 3)
-N.report_params()
-for i in range(10):
-    N.simulate_day()
+N = Network(5, 2)
+# N.report_params()
+for i in range(100):
+    a = N.simulate_day()
 B = N.b_with_outages(N.B, [])
 # print(N.B)
 # print(' ')
