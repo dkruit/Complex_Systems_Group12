@@ -1,9 +1,10 @@
 import numpy as np
 from matplotlib import pyplot as plt
-
+from scipy.optimize import linprog
 
 class Network:
-    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.05, labda=(1.0005, 0.0005)):
+    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.05, labda=(1.0005, 0.0005),
+                 cost_weights=(1, 100)):
         """
         Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
         nodes.
@@ -12,6 +13,7 @@ class Network:
         :param generator_P_max: Maximum power of one generator
         :param margin_F_max: F_max on day 0 is F_0 * margin_F_max
         :param labda: Mean and standard deviation of average daily power change
+        :param cost_weights: Weight for generation and load shed
         """
         # Set parameters
         self.labda = labda
@@ -25,8 +27,8 @@ class Network:
 
         # Initialize matrices
         self.M_adj = self.adjacency_matrix()
-        self.B = self.matrix_b()
-        self.A = self.matrix_a()
+        self.B = self.matrix_b(self.M_adj)
+        self.A = self.matrix_a(self.B)
 
         # Initialize P, F, Fmax and M
         self.P_max = generator_P_max
@@ -34,6 +36,12 @@ class Network:
         self.F = self.A.dot(self.P)
         self.F_max = np.abs(self.F * margin_F_max)
         self.M = np.abs(self.F / self.F_max)
+
+        # Vector with cost function to redispatch power
+        self.linprog_c = np.concatenate((cost_weights[0] * np.ones(len(self.generators)),
+                                         -cost_weights[0] * np.ones(len(self.generators)),
+                                         cost_weights[1] * np.ones(len(self.loads))),
+                                        axis=0)
 
     ####################################################################################################################
     # Functions for initialization
@@ -93,28 +101,45 @@ class Network:
             M[c[1], c[0]] = 1
         return M
 
-    def matrix_b(self):
+    def matrix_b(self, adjacency_matrix):
         """
         Computes the adjacency matrix. For now uses susceptence of 1 for all lines.
         :return:
         """
-        diagonal = np.sum(self.M_adj, axis=1)
-        B = np.diag(diagonal) - self.M_adj
+        diagonal = np.sum(adjacency_matrix, axis=1)
+        B = np.diag(diagonal) - adjacency_matrix
         return B
 
-    def matrix_a(self):
+    def b_with_outages(self, B, connected_nodes):
+        """
+        When lines break this affects B, this function returns B accounted for broken lines
+        :param B: Previous matrix B
+        :param connected_nodes: List containing a list with connected nodes for each line: [[0,1], [6,34],.. , [18, 28]]
+        :return: Updated version of B where broken lines are taken into account
+        """
+        new_B = np.array(B)
+        for nodes in connected_nodes:
+            new_B[nodes[0], nodes[1]] = 0.00001
+            new_B[nodes[1], nodes[0]] = 0.00001
+
+        np.fill_diagonal(new_B, 0)
+        diagonal = -np.sum(new_B, axis=1)
+        new_B += np.diag(diagonal)
+        return new_B
+
+    def matrix_a(self, B):
         """
         Generates the matrix A given a list of lines and the corresponding susceptence matrix B
         :return: matrix A
         """
         m = len(self.lines)
 
-        X = np.linalg.inv(self.B)
+        X = np.linalg.inv(B)
         N = np.zeros([m, self.n_nodes])
 
         for i, c in enumerate(self.lines):
-            N[i, c[0]] = -self.B[c[0], c[1]]
-            N[i, c[1]] = self.B[c[0], c[1]]
+            N[i, c[0]] = -B[c[0], c[1]]
+            N[i, c[1]] = B[c[0], c[1]]
 
         A = N.dot(X)
         return A
@@ -156,7 +181,7 @@ class Network:
         """
         Compute probability of failure due to overload
         """
-        return 0.5 * overload_fraction**2
+        return 0.3 * overload_fraction**2
 
     def initial_failures(self):
         """
@@ -180,19 +205,42 @@ class Network:
         line_indices = []
         connected_nodes = []
         for i, line in enumerate(self.lines):
-            p = self.h1(self.M[i])
-            if p > np.random.uniform(0, 1):
-                line_indices.append(i)
-                connected_nodes.append(line)
+            if self.M[i] > 0.99:
+                p = self.h1(self.M[i])
+                if p > np.random.uniform(0, 1):
+                    line_indices.append(i)
+                    connected_nodes.append(line)
         return line_indices, connected_nodes
     pass
 
-    def redispatch_power(self):
+    def redispatch_power(self, A):
         """
         Find new solution to redispatch power after failures occur
-        :return: List of failed lines
+        Delta_P for the generators is placed in front of loads split in positive and negative part:
+        delta_P = [gen_1+, gen_2+ ... gen_n+, gen_1-, gen_2- ... gen_n-, load_1, load_2 ... load_m] for n generators
+        and m loads.
+        :return: Flow trough lines
         """
-        pass
+        # Equality constraint A_eq delta_P = b_eq: sum(delta_P) = 0
+        A_eq = np.ones((1, len(self.linprog_c)))
+        b_eq = np.array([0.,])
+
+        # Inequality constraint: -Fmax - F < A delta_P < Fmax - F
+
+        A_ub = np.concatenate((A[:, self.generators],
+                               A[:, self.generators],
+                               A[:, self.loads]),
+                              axis=1)
+        A_ub = np.concatenate((-A_ub, A_ub), axis=0)
+        b_ub = np.concatenate((self.F_max + self.F, self.F_max - self.F))
+
+        sol = linprog(self.linprog_c, A_ub, b_ub, A_eq, b_eq, method='revised simplex')
+        print('KK')
+        print(sol.x)
+
+        # if sol.success:
+        #     self.P = sol.x
+        return 1
 
     def improve_lines(self):
         """
@@ -207,20 +255,40 @@ class Network:
         """
         Function to simulate a day
         """
+        # Copy of adjacency matrix where outages lines will be removed
 
         # Slow dynamics
         self.update_P()
         self.F = self.A.dot(self.P)
-        self.M = np.max(self.F / self.F_max)
+        self.M = self.F / self.F_max
 
-        self.initial_failures()
-        self.redispatch_power()
+        failed_lines = []
+        line_ids, linked_nodes = self.initial_failures()
+        B = np.array(self.B)
+        print(line_ids)
+        while len(line_ids) > 0:
 
-        self.improve_lines()
+            failed_lines.append(line_ids)
+
+            B = self.b_with_outages(B, linked_nodes)
+            A = self.matrix_a(B)
+
+            self.redispatch_power(A)
+            break
+
+        # self.improve_lines()
 
     ####################################################################################################################
-    # Functions for visualization
+    # Functions for visualization and representation
     ####################################################################################################################
+    def report_params(self):
+        print('Number of nodes:', self.n_nodes)
+        print('Number of generators:', len(self.generators))
+        print('Number of loads:', len(self.loads))
+        print('Power levels:', self.P)
+        print('Flow:', self.F)
+        print('Overload fraction:', self.M)
+
     def plot_network(self):
         """
         Plots the network with lines in black, generators in red and loads in green
@@ -246,8 +314,11 @@ class Network:
         plt.show()
 
 
-N = Network(6, 3)
+N = Network(5, 3)
+N.report_params()
 for i in range(10):
-    a, b = N.initial_failures()
-    print(a, b)
-N.plot_network()
+    N.simulate_day()
+B = N.b_with_outages(N.B, [])
+# print(N.B)
+# print(' ')
+# print((B))
