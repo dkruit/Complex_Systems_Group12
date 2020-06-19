@@ -2,9 +2,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import linprog
 
+
 class Network:
-    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=2, labda=(1.0005, 0.0005),
-                 cost_weights=(1, 100)):
+    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=2, labda=(1.00005, 0.25),
+                 cost_weights=(1, 100), mu=1.005):
         """
         Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
         nodes.
@@ -17,6 +18,7 @@ class Network:
         """
         # Set parameters
         self.labda = labda
+        self.mu = mu
 
         # Initialize network
         self.n_layers = n_layers
@@ -206,7 +208,7 @@ class Network:
         line_indices = []
         connected_nodes = []
         for i, line in enumerate(self.lines):
-            if self.M[i] > 0.99:
+            if self.M[i] > 0.95:
                 p = self.h1(self.M[i])
                 if p > np.random.uniform(0, 1):
                     line_indices.append(i)
@@ -249,14 +251,14 @@ class Network:
 
         # Solve new system
         sol = linprog(self.linprog_c, A_ub, b_ub, A_eq, b_eq, bounds=bounds, method='revised simplex')
-        print(sol.success, sol.status, sol.fun, sol.nit)
+        load_shed = 0
 
         if sol.success:
             n_generators = len(self.generators)
             delta_P = np.zeros(len(self.P))
             delta_P[self.generators] = sol.x[0:n_generators] + sol.x[n_generators:2 * n_generators]
             delta_P[self.loads] = sol.x[2 * n_generators::]
-            load_shed = np.sum(sol.x[2 * n_generators::])
+            load_shed += np.sum(sol.x[2 * n_generators::])
             print('Load shed:', load_shed)
             self.P = self.P + delta_P
 
@@ -268,11 +270,12 @@ class Network:
             self.M = F / self.F_max
         return sol.success
 
-    def improve_lines(self):
+    def improve_lines(self, failed_lines):
         """
         Improve lines which failed
         """
-        pass
+        for line in failed_lines:
+            self.F_max[line] *= self.mu
 
     ####################################################################################################################
     # Function to simulate a day
@@ -300,12 +303,12 @@ class Network:
             success = self.redispatch_power(A)
 
             if success:
-                # TODO compute failed lines based on redispatched power
-                line_ids, linked_nodes = [], []
+                line_ids, linked_nodes = self.overload_failures()
+            else:
+                line_ids = []
 
-            else: line_ids = []
+        self.improve_lines(failed_lines)
         return failed_lines
-        # self.improve_lines()
 
     ####################################################################################################################
     # Functions for visualization and representation
@@ -347,7 +350,8 @@ N = Network(6, 2)
 # N.report_params()
 for i in range(100):
     print('day', i)
-    a = N.simulate_day()
+    lines = N.simulate_day()
+    print('failed lines:', lines)
     # if a == 1:
         # break
 B = N.b_with_outages(N.B, [])
