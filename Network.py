@@ -266,7 +266,7 @@ class Network:
 
             self.F = A.dot(self.P)
             self.M = F / self.F_max
-            return 1
+        return sol.success
 
     def improve_lines(self):
         """
@@ -291,15 +291,20 @@ class Network:
         failed_lines = []
         line_ids, linked_nodes = self.initial_failures()
         B = np.array(self.B)
-        if len(line_ids) > 0:
+        while len(line_ids) > 0:
             failed_lines.append(line_ids)
 
             B = self.b_with_outages(B, linked_nodes)
             A = self.matrix_a(B)
 
-            self.redispatch_power(A)
-            return 1
-        return 0
+            success = self.redispatch_power(A)
+
+            if success:
+                # TODO compute failed lines based on redispatched power
+                line_ids, linked_nodes = None, None
+
+            else: line_ids = []
+        return failed_lines
         # self.improve_lines()
 
     ####################################################################################################################
