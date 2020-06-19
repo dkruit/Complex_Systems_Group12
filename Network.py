@@ -301,7 +301,7 @@ class Network:
 
             if success:
                 # TODO compute failed lines based on redispatched power
-                line_ids, linked_nodes = None, None
+                line_ids, linked_nodes = [], []
 
             else: line_ids = []
         return failed_lines
