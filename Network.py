@@ -192,7 +192,8 @@ class Network:
         connected_nodes = []
         for i, line in enumerate(self.lines):
             p = self.h0(self.M[i])
-            if p > np.random.uniform(0, 1):
+            a = np.random.uniform(0, 1)
+            if p > a:
                 line_indices.append(i)
                 connected_nodes.append(line)
         return line_indices, connected_nodes
@@ -226,7 +227,7 @@ class Network:
 
         # Equality constraint A_eq delta_P = b_eq: sum(delta_P) = 0
         A_eq = np.ones((1, len(self.linprog_c)))
-        b_eq = np.array([0.,])
+        b_eq = np.array([0., ])
 
         # Inequality constraint: -Fmax - F < A delta_P < Fmax - F
         A_ub = np.concatenate((A[:, self.generators],
@@ -236,29 +237,36 @@ class Network:
         A_ub = np.concatenate((-A_ub, A_ub), axis=0)
         b_ub = np.concatenate((self.F_max + F, self.F_max - F))
 
+        # Bounds for delta_P for generators (positive and negative) and loads
         bounds = []
         for generator in self.generators:
             bounds.append((0, self.P_max - self.P[generator]))
         for generator in self.generators:
-            bounds.append((0, self.P[generator]))
+            bounds.append((-self.P[generator], 0))
         for load in self.loads:
-            bounds.append((0, -self.P[load]))
+            bound = (0, -self.P[load])
+            bounds.append(bound)
 
+        # Solve new system
         sol = linprog(self.linprog_c, A_ub, b_ub, A_eq, b_eq, bounds=bounds, method='revised simplex')
-
-        n_generators = len(self.generators)
-        delta_P_gen = sol.x[0:n_generators] + sol.x[n_generators:2*n_generators]
-        delta_P_load = sol.x[2*n_generators::]
         print(sol.success, sol.status, sol.fun, sol.nit)
 
         if sol.success:
-            print(np.concatenate([delta_P_gen, delta_P_load]))
-            self.P = self.P + np.concatenate([delta_P_gen, delta_P_load])
-            F = A.dot(self.P)
-            M = F / self.F_max
+            n_generators = len(self.generators)
+            delta_P = np.zeros(len(self.P))
+            delta_P[self.generators] = sol.x[0:n_generators] + sol.x[n_generators:2 * n_generators]
+            delta_P[self.loads] = sol.x[2 * n_generators::]
+            load_shed = np.sum(sol.x[2 * n_generators::])
+            print('Load shed:', load_shed)
+            self.P = self.P + delta_P
 
-            print(M)
-        return 1
+            # In this addition floating point errors occur if delta_P[i] = -self.P[i].
+            # If this happens loads can have positive and generators negative power which causes errors.
+            self.P[np.abs(self.P) < 1e-10] = 0
+
+            self.F = A.dot(self.P)
+            self.M = F / self.F_max
+            return 1
 
     def improve_lines(self):
         """
@@ -283,8 +291,7 @@ class Network:
         failed_lines = []
         line_ids, linked_nodes = self.initial_failures()
         B = np.array(self.B)
-        while len(line_ids) > 0:
-
+        if len(line_ids) > 0:
             failed_lines.append(line_ids)
 
             B = self.b_with_outages(B, linked_nodes)
@@ -331,10 +338,13 @@ class Network:
         plt.show()
 
 
-N = Network(5, 2)
+N = Network(6, 2)
 # N.report_params()
 for i in range(100):
+    print('day', i)
     a = N.simulate_day()
+    # if a == 1:
+        # break
 B = N.b_with_outages(N.B, [])
 # print(N.B)
 # print(' ')
