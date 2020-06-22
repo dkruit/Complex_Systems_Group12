@@ -1,10 +1,10 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import linprog
-
+import random
 
 class Network:
-    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=2, labda=(1.00005, 0.25),
+    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.2, labda=(1.00005, 1.0),
                  cost_weights=(1, 100), mu=1.005):
         """
         Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
@@ -13,7 +13,7 @@ class Network:
         :param generator_layer: Layer which contains the generators
         :param generator_P_max: Maximum power of one generator
         :param margin_F_max: F_max on day 0 is F_0 * margin_F_max
-        :param labda: Mean and standard deviation of average daily power change
+        :param labda: Daily power change is a ubiform distribution between labda[0]/labda[1] and labda[0]*labda[1]
         :param cost_weights: Weight for generation and load shed
         """
         # Set parameters
@@ -34,8 +34,10 @@ class Network:
 
         # Initialize P, F, Fmax and M
         self.P_max = generator_P_max
-        self.P = self.set_p0(self.P_max)
-        self.F = self.A.dot(self.P)
+        self.P_slow = self.set_p0(self.P_max)
+        self.P_fast = np.array(self.P_slow)
+
+        self.F = self.A.dot(self.P_slow)
         self.F_max = np.abs(self.F * margin_F_max)
         self.M = np.abs(self.F / self.F_max)
 
@@ -121,8 +123,8 @@ class Network:
         """
         new_B = np.array(B)
         for nodes in connected_nodes:
-            new_B[nodes[0], nodes[1]] = -0.0001
-            new_B[nodes[1], nodes[0]] = -0.0001
+            new_B[nodes[0], nodes[1]] = -0.0000001
+            new_B[nodes[1], nodes[0]] = -0.0000001
 
         np.fill_diagonal(new_B, 0)
         diagonal = -np.sum(new_B, axis=1)
@@ -169,8 +171,8 @@ class Network:
         """
         Update P using lambda
         """
-        l = np.random.normal(self.labda[0], self.labda[1])
-        self.P *= l
+        l = np.random.uniform(self.labda[0]/self.labda[1], self.labda[0]*self.labda[1])
+        self.P_slow *= l
         self.P_max *= l
 
     def h0(self, overload_fraction):
@@ -225,7 +227,7 @@ class Network:
         :return: Flow trough lines
         """
         # Compute flows without redispatching power
-        F = A.dot(self.P)
+        F = A.dot(self.P_fast)
 
         # Equality constraint A_eq delta_P = b_eq: sum(delta_P) = 0
         A_eq = np.ones((1, len(self.linprog_c)))
@@ -242,33 +244,37 @@ class Network:
         # Bounds for delta_P for generators (positive and negative) and loads
         bounds = []
         for generator in self.generators:
-            bounds.append((0, self.P_max - self.P[generator]))
+            bound = self.P_max - self.P_fast[generator]
+            # Due to floating point error this may become negative.
+            if bound < 0:
+                bound = 0.
+            bounds.append((0, bound))
         for generator in self.generators:
-            bounds.append((-self.P[generator], 0))
+            bounds.append((-self.P_fast[generator], 0))
         for load in self.loads:
-            bound = (0, -self.P[load])
+            bound = (0, -self.P_fast[load])
             bounds.append(bound)
 
         # Solve new system
         sol = linprog(self.linprog_c, A_ub, b_ub, A_eq, b_eq, bounds=bounds, method='revised simplex')
-        load_shed = 0
 
         if sol.success:
             n_generators = len(self.generators)
-            delta_P = np.zeros(len(self.P))
+            delta_P = np.zeros(len(self.P_fast))
             delta_P[self.generators] = sol.x[0:n_generators] + sol.x[n_generators:2 * n_generators]
             delta_P[self.loads] = sol.x[2 * n_generators::]
-            load_shed += np.sum(sol.x[2 * n_generators::])
-            print('Load shed:', load_shed)
-            self.P = self.P + delta_P
+            load_shed = np.sum(delta_P[self.loads])
+            self.P_fast += delta_P
 
             # In this addition floating point errors occur if delta_P[i] = -self.P[i].
             # If this happens loads can have positive and generators negative power which causes errors.
-            self.P[np.abs(self.P) < 1e-10] = 0
+            self.P_fast[np.abs(self.P_fast) < 1e-10] = 0
 
-            self.F = A.dot(self.P)
-            self.M = F / self.F_max
-        return sol.success
+            self.F = A.dot(self.P_fast)
+            self.M = np.abs(self.F) / self.F_max
+        else:
+            load_shed = 0
+        return sol.success, load_shed
 
     def improve_lines(self, failed_lines):
         """
@@ -282,16 +288,17 @@ class Network:
         Function to add solar energy to 20% of the loads
         """
 
-        max_P,sum_old_P = abs(max(self.P)),sum(self.P[self.loads])
+        max_P,sum_old_P = abs(max(self.P_slow)),sum(self.P_slow[self.loads])
         solar_panels = random.sample(self.loads,round(0.2*len(self.loads)))
         for i in solar_panels:
             self.load_efficiency = random.random()
-            self.P[i] = (max_P * self.load_efficiency)+self.P[i]
-        sum_new_P = sum(self.P[self.loads])
+            self.P_slow[i] = (max_P * self.load_efficiency)+self.P_slow[i]
+        sum_new_P = sum(self.P_slow[self.loads])
         solar_energy = abs(sum_new_P-sum_old_P)
         subtract_P = solar_energy/len(self.generators)
         for i in self.generators:
-            self.P[i] -= subtract_P
+            self.P_slow[i] -= subtract_P
+
     ####################################################################################################################
     # Function to simulate a day
     ####################################################################################################################
@@ -303,27 +310,36 @@ class Network:
 
         # Slow dynamics
         self.update_P()
-        self.F = self.A.dot(self.P)
-        self.M = self.F / self.F_max
+        self.F = self.A.dot(self.P_slow)
+        self.M = np.abs(self.F) / self.F_max
+        self.P_fast = np.array(self.P_slow)
+        # print(np.mean(np.abs(self.P_slow)), np.mean(self.M))
 
         failed_lines = []
+        load_shed_today = 0.
         line_ids, linked_nodes = self.initial_failures()
         B = np.array(self.B)
+
         while len(line_ids) > 0:
             failed_lines.append(line_ids)
-
             B = self.b_with_outages(B, linked_nodes)
-            A = self.matrix_a(B)
 
-            success = self.redispatch_power(A)
-
+            try:
+                A = self.matrix_a(B)
+            except:
+                print('Singular matrix, ending day')
+                success = False
+            else:
+                success, load_shed = self.redispatch_power(A)
+                load_shed_today += load_shed
             if success:
                 line_ids, linked_nodes = self.overload_failures()
             else:
                 line_ids = []
 
-        self.improve_lines(failed_lines)
-        return failed_lines
+            self.improve_lines(failed_lines)
+
+        return failed_lines, load_shed_today
 
     ####################################################################################################################
     # Functions for visualization and representation
@@ -332,7 +348,7 @@ class Network:
         print('Number of nodes:', self.n_nodes)
         print('Number of generators:', len(self.generators))
         print('Number of loads:', len(self.loads))
-        print('Power levels:', self.P)
+        print('Power levels:', self.P_slow)
         print('Flow:', self.F)
         print('Overload fraction:', self.M)
 
@@ -363,11 +379,13 @@ class Network:
 
 N = Network(6, 2)
 # N.report_params()
-N.solar_panels()
+# N.solar_panels()
 for i in range(100):
-    print('day', i)
-    lines = N.simulate_day()
+    print('\nday', i)
+    lines, load_shed = N.simulate_day()
     print('failed lines:', lines)
+    print('load shed:', load_shed)
+    print(np.mean(np.abs(N.P_slow)), np.mean(N.M))
     # if a == 1:
         # break
 B = N.b_with_outages(N.B, [])
