@@ -261,7 +261,7 @@ class Network:
             delta_P[self.loads] = sol.x[2 * n_generators::]
             load_shed += np.sum(sol.x[2 * n_generators::])
             print('Load shed:', load_shed)
-            self.P = self.P + delta_P
+            self.P = self.P + delta_P #hier moet 0 uitkomen als delta p == self.P
 
             # In this addition floating point errors occur if delta_P[i] = -self.P[i].
             # If this happens loads can have positive and generators negative power which causes errors.
@@ -280,19 +280,19 @@ class Network:
 
     def solar_panels(self):
         """
-        Function to add solar energy to 20% of the loads
+        Function to add solar energy to 20% of the loads and redistribute power of generators
         """
-
         max_P,sum_old_P = abs(max(self.P)),sum(self.P[self.loads])
-        solar_panels = random.sample(self.loads,round(0.2*len(self.loads)))
-        for i in solar_panels:
+        # print(random.sample(self.loads,round(0.2*len(self.loads))))
+        solar_panels = [63, 31, 45, 76, 30, 72, 80, 50, 84, 54, 38, 19, 64, 87, 49, 77, 16, 82]
+        for solar_panel in solar_panels:
             self.load_efficiency = random.random()
-            self.P[i] = (max_P * self.load_efficiency)+self.P[i]
+            self.P[solar_panel] = (max_P * self.load_efficiency)+self.P[solar_panel]
         sum_new_P = sum(self.P[self.loads])
         solar_energy = abs(sum_new_P-sum_old_P)
         subtract_P = solar_energy/len(self.generators)
-        for i in self.generators:
-            self.P[i] -= subtract_P
+        for generator in self.generators:
+            self.P[generator] -= subtract_P
     ####################################################################################################################
     # Function to simulate a day
     ####################################################################################################################
