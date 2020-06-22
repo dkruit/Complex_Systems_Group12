@@ -277,6 +277,21 @@ class Network:
         for line in failed_lines:
             self.F_max[line] *= self.mu
 
+    def solar_panels(self):
+        """
+        Function to add solar energy to 20% of the loads
+        """
+
+        max_P,sum_old_P = abs(max(self.P)),sum(self.P[self.loads])
+        solar_panels = random.sample(self.loads,round(0.2*len(self.loads)))
+        for i in solar_panels:
+            self.load_efficiency = random.random()
+            self.P[i] = (max_P * self.load_efficiency)+self.P[i]
+        sum_new_P = sum(self.P[self.loads])
+        solar_energy = abs(sum_new_P-sum_old_P)
+        subtract_P = solar_energy/len(self.generators)
+        for i in self.generators:
+            self.P[i] -= subtract_P
     ####################################################################################################################
     # Function to simulate a day
     ####################################################################################################################
@@ -348,6 +363,7 @@ class Network:
 
 N = Network(6, 2)
 # N.report_params()
+N.solar_panels()
 for i in range(100):
     print('day', i)
     lines = N.simulate_day()
