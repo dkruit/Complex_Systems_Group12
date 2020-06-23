@@ -280,8 +280,9 @@ class Network:
         """
         Improve lines which failed
         """
-        for line in failed_lines:
-            self.F_max[line] *= self.mu
+        for lines in failed_lines:
+            for line in lines:
+                self.F_max[line] *= self.mu
 
     def solar_panels(self):
         """
