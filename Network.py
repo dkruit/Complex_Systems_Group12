@@ -4,7 +4,7 @@ from scipy.optimize import linprog
 import random
 
 class Network:
-    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.2, labda=(1.00005, 1.0),
+    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.5, labda=(1.00005, 1.1),
                  cost_weights=(1, 100), mu=1.005):
         """
         Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
@@ -39,6 +39,7 @@ class Network:
 
         self.F = self.A.dot(self.P_slow)
         self.F_max = np.abs(self.F * margin_F_max)
+        self.F_max_fast = np.array(self.F_max)
         self.M = np.abs(self.F / self.F_max)
 
         # Vector with cost function to redispatch power
@@ -185,7 +186,7 @@ class Network:
         """
         Compute probability of failure due to overload
         """
-        return 0.3 * overload_fraction**2
+        return 0.1 * overload_fraction**2
 
     def initial_failures(self):
         """
@@ -210,7 +211,7 @@ class Network:
         line_indices = []
         connected_nodes = []
         for i, line in enumerate(self.lines):
-            if self.M[i] > 0.95:
+            if self.M[i] > 0.99 and self.F_max_fast[i] > 0.000001:
                 p = self.h1(self.M[i])
                 if p > np.random.uniform(0, 1):
                     line_indices.append(i)
@@ -239,7 +240,7 @@ class Network:
                                A[:, self.loads]),
                               axis=1)
         A_ub = np.concatenate((-A_ub, A_ub), axis=0)
-        b_ub = np.concatenate((self.F_max + F, self.F_max - F))
+        b_ub = np.concatenate((self.F_max_fast + F, self.F_max_fast - F))
 
         # Bounds for delta_P for generators (positive and negative) and loads
         bounds = []
@@ -257,7 +258,6 @@ class Network:
 
         # Solve new system
         sol = linprog(self.linprog_c, A_ub, b_ub, A_eq, b_eq, bounds=bounds, method='revised simplex')
-
         if sol.success:
             n_generators = len(self.generators)
             delta_P = np.zeros(len(self.P_fast))
@@ -312,6 +312,7 @@ class Network:
         # Slow dynamics
         self.update_P()
         self.F = self.A.dot(self.P_slow)
+        self.F_max_fast = np.array(self.F_max)
         self.M = np.abs(self.F) / self.F_max
         self.P_fast = np.array(self.P_slow)
         # print(np.mean(np.abs(self.P_slow)), np.mean(self.M))
@@ -323,8 +324,10 @@ class Network:
 
         while len(line_ids) > 0:
             failed_lines.append(line_ids)
-            B = self.b_with_outages(B, linked_nodes)
+            self.F_max_fast[line_ids] = 0.
 
+            """
+            B = self.b_with_outages(B, linked_nodes)
             try:
                 A = self.matrix_a(B)
             except:
@@ -337,8 +340,16 @@ class Network:
                 line_ids, linked_nodes = self.overload_failures()
             else:
                 line_ids = []
+            """
+            success, load_shed = self.redispatch_power(self.A)
+            load_shed_today += load_shed
 
-            self.improve_lines(failed_lines)
+            if success:
+                line_ids, linked_nodes = self.overload_failures()
+            else:
+                line_ids = []
+
+        self.improve_lines(failed_lines)
 
         return failed_lines, load_shed_today
 
