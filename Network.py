@@ -12,7 +12,7 @@ N_SIMS = 1
 N_DAYS = 20
 NETWORK_FIGS = False
 PLOT_FIGS = True
-EXPERIMENT_NAME = "test_14u38"
+EXPERIMENT_NAME = "test_Maria"
 
 class Network:
     def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.2, labda=(1.00005, 1.005),
@@ -530,7 +530,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.xlabel(xlabel = "Nr of failed lines")
         plt.ylabel(ylabel = "Frequency")
         plt.savefig(EXPERIMENT_NAME + "/frequency_failedlines_hist.jpg")
-        plt.show()
+        plt.close()
 
         line_outages = [0] * 94
         for nr in all_failed_lines:
@@ -541,7 +541,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.ylabel(ylabel = 'Nr of events')
         plt.grid(b = True)
         plt.savefig(EXPERIMENT_NAME + "/Nrevents_failedlines.jpg")
-        plt.show()
+        plt.close()
 
         x_outages = []
         y_outages = []
@@ -561,10 +561,13 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.yscale("log")
         plt.grid(b = True)
         plt.savefig(EXPERIMENT_NAME + "/probability_failedlines_log.jpg")
-        plt.show()
+        plt.close()
 
         plt.hist(shedded_loads, density = True)
-        plt.show()
+        plt.xlabel(xlabel = "Load shed")
+        plt.ylabel(ylabel = "Probability")
+        plt.savefig(EXPERIMENT_NAME + "/hist_sheddedloads.jpg")
+        plt.close()
 
         n = 20
         p, x = np.histogram(N.load_shed, bins=np.logspace(-2, 0, n))
@@ -578,7 +581,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.xticks((1e-2, 1e-1, 1))
         plt.grid(b = True)
         plt.savefig(EXPERIMENT_NAME + "/frequency_loadshed_log.jpg")
-        plt.show()
+        plt.close()
 
 
 
