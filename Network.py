@@ -9,7 +9,7 @@ GEN_LAYER = 2
 N_SIMS = 1
 N_DAYS = 1000
 NETWORK_FIGS = False
-PLOT_FIGS = False
+PLOT_FIGS = True
 
 class Network:
     def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.2, labda=(1.00005, 1.005),
@@ -298,9 +298,10 @@ class Network:
 
             self.F = A.dot(self.P_fast)
             self.M = np.abs(self.F) / self.F_max
-            for value in self.M:
-                if value > 1:
-                    print("OVERLOAD AFTER REDISPATCH ------------->", value)
+            # TODO: HIER!!!
+            # for value in self.M:
+            #     if value > 1:
+            #         print("OVERLOAD AFTER REDISPATCH ------------->", value)
         else:
             load_shed = 0
         return sol.success, load_shed
@@ -492,15 +493,6 @@ class Network:
 # plt.hist(N.n_failed)
 # plt.show()
 
-# n = 20
-# p, x = np.histogram(N.load_shed, bins=n)
-# x = x[:-1] + (x[1] - x[0])/2   # convert bin edges to centers
-# f = UnivariateSpline(x, p, s=n)
-# plt.plot(x, f(x))
-# plt.xscale('log')
-# plt.yscale('log')
-# plt.xticks((1e-2, 1e-1, 1))
-# plt.show()
 
 def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
     all_failed_lines = []
@@ -565,6 +557,20 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
 
         plt.hist(shedded_loads, density = True)
         plt.show()
+
+        n = 20
+        p, x = np.histogram(N.load_shed, bins=n)
+        x = x[:-1] + (x[1] - x[0])/2   # convert bin edges to centers
+        f = UnivariateSpline(x, p, s=n)
+        plt.plot(x, f(x))
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel(xlabel = "Load shed")
+        plt.ylabel(ylabel = "Frequency")
+        plt.xticks((1e-2, 1e-1, 1))
+        plt.grid(b = True)
+        plt.show()
+
 
 
 start_simulation(N_LAYERS, GEN_LAYER, N_SIMS, N_DAYS)
