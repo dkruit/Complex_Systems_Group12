@@ -3,13 +3,16 @@ from matplotlib import pyplot as plt
 from scipy.optimize import linprog
 from scipy.interpolate import UnivariateSpline
 import random
+import os
+import csv
 
 N_LAYERS = 6
 GEN_LAYER = 2
 N_SIMS = 1
-N_DAYS = 5000
+N_DAYS = 20
 NETWORK_FIGS = False
 PLOT_FIGS = True
+EXPERIMENT_NAME = "test_14u38"
 
 class Network:
     def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.2, labda=(1.00005, 1.005),
@@ -455,7 +458,7 @@ class Network:
             # plt.scatter(x, y, c='g', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
             plt.scatter(x[self.generators], y[self.generators], c='w', edgecolors = 'g', linewidths=1, zorder=2, s = 120)
             plt.title(label = title + " day " + str(self.day))
-            plt.savefig("day" + str(self.day) + title)
+            plt.savefig(EXPERIMENT_NAME + "/day" + str(self.day) + title + ".jpg")
             plt.close()
 
     def get_linecolor(self, line_number):
@@ -489,9 +492,11 @@ class Network:
 
 
 def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
-    all_failed_lines = []
-    shedded_loads = []
+    if not os.path.exists(EXPERIMENT_NAME):
+        os.makedirs(EXPERIMENT_NAME)
     for i in range(n_simulations):
+        all_failed_lines = []
+        shedded_loads = []
         print('\nsimulation', i)
         N = Network(nr_layers, generator_layer)
         for j in range(n_days):
@@ -506,6 +511,12 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
             print(np.mean(np.abs(N.P_slow)), np.mean(N.M))
             
         B = N.b_with_outages(N.B, [])
+        failed_lines_file = open(EXPERIMENT_NAME + "/flines_simulation_" + str(i) + ".txt", 'w')
+        failed_lines_file.write(str(all_failed_lines))
+        failed_lines_file.close()
+        shedded_loads_file = open(EXPERIMENT_NAME + "/shedded_simulation_" + str(i) + ".txt", 'w')
+        shedded_loads_file.write(str(shedded_loads))
+        shedded_loads_file.close()
 
     if PLOT_FIGS:
 
@@ -518,7 +529,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.hist(all_failed_lines, log = True)
         plt.xlabel(xlabel = "Nr of failed lines")
         plt.ylabel(ylabel = "Frequency")
-        plt.savefig("frequency_failedlines_hist.jpg")
+        plt.savefig(EXPERIMENT_NAME + "/frequency_failedlines_hist.jpg")
         plt.show()
 
         line_outages = [0] * 94
@@ -529,7 +540,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.xlabel(xlabel = 'Nr of failed lines')
         plt.ylabel(ylabel = 'Nr of events')
         plt.grid(b = True)
-        plt.savefig("Nrevents_failedlines.jpg")
+        plt.savefig(EXPERIMENT_NAME + "/Nrevents_failedlines.jpg")
         plt.show()
 
         x_outages = []
@@ -549,7 +560,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.xscale("log")
         plt.yscale("log")
         plt.grid(b = True)
-        plt.savefig("probability_failedlines_log.jpg")
+        plt.savefig(EXPERIMENT_NAME + "/probability_failedlines_log.jpg")
         plt.show()
 
         plt.hist(shedded_loads, density = True)
@@ -566,7 +577,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.ylabel(ylabel = "Frequency")
         plt.xticks((1e-2, 1e-1, 1))
         plt.grid(b = True)
-        plt.savefig("frequency_loadshed_log.jpg")
+        plt.savefig(EXPERIMENT_NAME + "/frequency_loadshed_log.jpg")
         plt.show()
 
 
