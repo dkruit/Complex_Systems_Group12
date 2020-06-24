@@ -5,11 +5,12 @@ from scipy.interpolate import UnivariateSpline
 import random
 
 N_LAYERS = 6
-GEN_LAYER = 2
+GEN_LAYER = 3
 N_SIMS = 1
-N_DAYS = 5000
+N_DAYS = 2500
 NETWORK_FIGS = False
 PLOT_FIGS = True
+
 
 class Network:
     def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.2, labda=(1.00005, 1.005),
@@ -556,7 +557,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.show()
 
         n = 20
-        p, x = np.histogram(N.load_shed, bins=np.logspace(-2, 0, n))
+        p, x = np.histogram(N.load_shed, bins=np.logspace(-2, 0, n), density=True)
         x = x[:-1] + (x[1] - x[0])/2   # convert bin edges to centers
         f = UnivariateSpline(x, p, s=n)
         plt.plot(x, f(x))
@@ -568,7 +569,6 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.grid(b = True)
         plt.savefig("frequency_loadshed_log.jpg")
         plt.show()
-
 
 
 start_simulation(N_LAYERS, GEN_LAYER, N_SIMS, N_DAYS)
