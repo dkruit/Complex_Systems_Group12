@@ -4,6 +4,13 @@ from scipy.optimize import linprog
 from scipy.interpolate import UnivariateSpline
 import random
 
+N_LAYERS = 6
+GEN_LAYER = 2
+N_SIMS = 1
+N_DAYS = 1000
+NETWORK_FIGS = False
+PLOT_FIGS = False
+
 class Network:
     def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.2, labda=(1.00005, 1.005),
                  cost_weights=(1, 100), mu=1.005):
@@ -48,6 +55,19 @@ class Network:
                                          -cost_weights[0] * np.ones(len(self.generators)),
                                          cost_weights[1] * np.ones(len(self.loads))),
                                         axis=0)
+
+        # Vector to store results
+        self.load_shed = []
+        self.n_failed = []
+
+        # Storage for analysis and visualisation
+        self.failures_store = []
+        self.maximal_F = np.max(self.F_max)
+        self.day = 0
+        self.store_F = []
+        self.store_P = []
+        self.store_P_redispatched = []
+        self.delta_P = np.zeros(len(self.P_fast))
 
         # Vector to store results
         self.load_shed = []
@@ -278,6 +298,9 @@ class Network:
 
             self.F = A.dot(self.P_fast)
             self.M = np.abs(self.F) / self.F_max
+            for value in self.M:
+                if value > 1:
+                    print("OVERLOAD AFTER REDISPATCH ------------->", value)
         else:
             load_shed = 0
         return sol.success, load_shed
@@ -321,12 +344,14 @@ class Network:
         self.F_max_fast = np.array(self.F_max)
         self.M = np.abs(self.F) / self.F_max
         self.P_fast = np.array(self.P_slow)
+        self.plot_network(function = "process", title = "a_updated_p")
         # print(np.mean(np.abs(self.P_slow)), np.mean(self.M))
 
         failed_lines = []
         load_shed_today = 0.
         line_ids, linked_nodes = self.initial_failures()
         B = np.array(self.B)
+        self.plot_network(function = "process", title = "b_initial_failure", failed_lines_plot = line_ids)
 
         while len(line_ids) > 0:
             failed_lines.append(line_ids)
@@ -359,6 +384,8 @@ class Network:
         if len(failed_lines) > 0:
             self.load_shed.append(load_shed_today / np.sum(self.P_slow[self.generators]))
             self.n_failed.append(len(failed_lines))
+        self.plot_network(function = "process", title = "c_after_redispatch", failed_lines_plot = failed_lines)
+        self.day += 1
         return failed_lines, load_shed_today
 
     ####################################################################################################################
@@ -372,53 +399,172 @@ class Network:
         print('Flow:', self.F)
         print('Overload fraction:', self.M)
 
-    def plot_network(self):
+    def plot_network(self, function = "network", title = "", failed_lines_plot = [], failed_nodes_plot = []):
         """
         Plots the network with lines in black, generators in red and loads in green
         """
-        x = np.array([])
-        y = np.array([])
-        for i in range(len(self.nodes_in_layer)):
-            b = range(self.nodes_in_layer[i][0], self.nodes_in_layer[i][1])
-            n_buses = len(b)
+        # x = np.array([])
+        # y = np.array([])
+        # for i in range(len(self.nodes_in_layer)):
+        #     b = range(self.nodes_in_layer[i][0], self.nodes_in_layer[i][1])
+        #     n_buses = len(b)
 
-            angles = np.linspace(0, 2.*np.pi, n_buses+1) + np.pi/n_buses
-            angles = np.delete(angles, n_buses)
-            x = np.append(x, np.cos(angles) * i)
-            y = np.append(y, np.sin(angles) * i)
+        #     angles = np.linspace(0, 2.*np.pi, n_buses+1) + np.pi/n_buses
+        #     angles = np.delete(angles, n_buses)
+        #     x = np.append(x, np.cos(angles) * i)
+        #     y = np.append(y, np.sin(angles) * i)
 
-        for l in self.lines:
-            x_line = [x[l[0]], x[l[1]]]
-            y_line = [y[l[0]], y[l[1]]]
-            plt.plot(x_line, y_line, c='black', zorder=0)
+        # for l in self.lines:
+        #     x_line = [x[l[0]], x[l[1]]]
+        #     y_line = [y[l[0]], y[l[1]]]
+        #     plt.plot(x_line, y_line, c='black', zorder=0)
 
-        plt.scatter(x, y, c='g', linewidths=5, zorder=1)
-        plt.scatter(x[self.generators], y[self.generators], c='r', linewidths=5, zorder=2)
+        # plt.scatter(x, y, c='g', linewidths=5, zorder=1)
+        # plt.scatter(x[self.generators], y[self.generators], c='r', linewidths=5, zorder=2)
+        # plt.show()
+        if NETWORK_FIGS:
+            x = np.array([])
+            y = np.array([])
+            for i in range(len(self.nodes_in_layer)):
+                b = range(self.nodes_in_layer[i][0], self.nodes_in_layer[i][1])
+                n_buses = len(b)
+
+                angles = np.linspace(0, 2.*np.pi, n_buses+1) + np.pi/n_buses
+                angles = np.delete(angles, n_buses)
+                x = np.append(x, np.cos(angles) * i)
+                y = np.append(y, np.sin(angles) * i)
+
+                # todo
+                if self.P_fast[i] > 0:
+                    load_fraction_failed = 0
+                else:
+                    load_fraction_failed = 0
+                # TODO: dit klopt niet! Load fraction berekenen.
+                if abs(load_fraction_failed) > 0.95:
+                    plt.scatter(x, y, c='k', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
+                else:
+                    plt.scatter(x, y, c='g', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
+
+            for i, l in enumerate(self.lines):
+                x_line = [x[l[0]], x[l[1]]]
+                y_line = [y[l[0]], y[l[1]]]
+                if function == "network":
+                    plt.plot(x_line, y_line, c='black', zorder=0)
+                else:
+                    if i in failed_lines_plot:
+                        plt.plot(x_line, y_line, 'k--', zorder=0, linewidth = 1 + 2 * (self.F_max[i] / self.maximal_F))
+                    else:
+                        plt.plot(x_line, y_line, c = self.get_linecolor(i), zorder=0, linewidth = 1 + 2 * (self.F_max[i] / self.maximal_F))
+
+
+            # plt.scatter(x, y, c='g', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
+            plt.scatter(x[self.generators], y[self.generators], c='w', edgecolors = 'g', linewidths=1, zorder=2, s = 120)
+            plt.title(label = title + " day " + str(self.day))
+            plt.savefig("day" + str(self.day) + title)
+            plt.close()
+
+    def get_linecolor(self, line_number):
+        # colors0 = cm.get_cmap("Greens")
+        # colors1 = cm.get_cmap("Reds")
+        overflow = self.M[line_number]
+        if overflow < 1:
+            return "g"
+        else:
+            return "r"
+
+
+
+
+
+# N = Network(6, 2)
+# # N.report_params()
+# # N.solar_panels()
+# for i in range(5000):
+#     print('\nday', i)
+#     lines, load_shed = N.simulate_day()
+#     print('failed lines:', lines)
+#     print('load shed:', load_shed)
+#     print('power', -np.sum(N.P_slow[N.loads]))
+#     print(np.mean(np.abs(N.P_slow)), np.mean(N.M))
+#     # if a == 1:
+#         # break
+
+# plt.hist(N.n_failed)
+# plt.show()
+
+# n = 20
+# p, x = np.histogram(N.load_shed, bins=n)
+# x = x[:-1] + (x[1] - x[0])/2   # convert bin edges to centers
+# f = UnivariateSpline(x, p, s=n)
+# plt.plot(x, f(x))
+# plt.xscale('log')
+# plt.yscale('log')
+# plt.xticks((1e-2, 1e-1, 1))
+# plt.show()
+
+def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
+    all_failed_lines = []
+    shedded_loads = []
+    for i in range(n_simulations):
+        print('\nsimulation', i)
+        N = Network(nr_layers, generator_layer)
+        for j in range(n_days):
+            lines, load_shed = N.simulate_day()
+            if len(lines) > 0:
+                all_failed_lines.append(len(lines))
+            if load_shed > 0:
+                shedded_loads.append(load_shed / np.sum(N.P_slow[N.loads]))
+            shedded_loads.append(load_shed)
+            print('failed lines:', lines)
+            print('load shed:', load_shed)
+            print(np.mean(np.abs(N.P_slow)), np.mean(N.M))
+            
+        B = N.b_with_outages(N.B, [])
+
+    if PLOT_FIGS:
+
+        # hist, bins, _ = plt.hist(all_failed_lines)
+
+        # # histogram on log scale. 
+        # # Use non-equal bin sizes, such that they look equal on log scale.
+        # logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+        # plt.show()
+        plt.hist(all_failed_lines, log = True)
+        plt.xlabel(xlabel = "Nr of failed lines")
+        plt.ylabel(ylabel = "Frequency")
+        plt.show()
+
+        line_outages = [0] * 94
+        for nr in all_failed_lines:
+            line_outages[nr] += 1
+
+        plt.plot(range(0, len(line_outages)), line_outages)
+        plt.xlabel(xlabel = 'Nr of failed lines')
+        plt.ylabel(ylabel = 'Nr of events')
+        plt.grid(b = True)
+        plt.show()
+
+        x_outages = []
+        y_outages = []
+
+        for i, value in enumerate(line_outages):
+            if value > 0:
+                x_outages.append(i)
+                y_outages.append(value)
+
+        for i, value in enumerate(y_outages):
+            y_outages[i] = value/len(all_failed_lines)
+
+        plt.plot(x_outages, y_outages)
+        plt.xlabel(xlabel = "Nr of failed lines")
+        plt.ylabel(ylabel = "Probability")
+        plt.xscale("log")
+        plt.yscale("log")
+        plt.grid(b = True)
+        plt.show()
+
+        plt.hist(shedded_loads, density = True)
         plt.show()
 
 
-N = Network(6, 2)
-# N.report_params()
-# N.solar_panels()
-for i in range(5000):
-    print('\nday', i)
-    lines, load_shed = N.simulate_day()
-    print('failed lines:', lines)
-    print('load shed:', load_shed)
-    print('power', -np.sum(N.P_slow[N.loads]))
-    print(np.mean(np.abs(N.P_slow)), np.mean(N.M))
-    # if a == 1:
-        # break
-
-plt.hist(N.n_failed)
-plt.show()
-
-n = 20
-p, x = np.histogram(N.load_shed, bins=n)
-x = x[:-1] + (x[1] - x[0])/2   # convert bin edges to centers
-f = UnivariateSpline(x, p, s=n)
-plt.plot(x, f(x))
-plt.xscale('log')
-plt.yscale('log')
-plt.xticks((1e-2, 1e-1, 1))
-plt.show()
+start_simulation(N_LAYERS, GEN_LAYER, N_SIMS, N_DAYS)
