@@ -7,7 +7,7 @@ import random
 N_LAYERS = 6
 GEN_LAYER = 2
 N_SIMS = 1
-N_DAYS = 1000
+N_DAYS = 5000
 NETWORK_FIGS = False
 PLOT_FIGS = True
 
@@ -286,11 +286,11 @@ class Network:
         sol = linprog(self.linprog_c, A_ub, b_ub, A_eq, b_eq, bounds=bounds, method='revised simplex')
         if sol.success:
             n_generators = len(self.generators)
-            delta_P = np.zeros(len(self.P_fast))
-            delta_P[self.generators] = sol.x[0:n_generators] + sol.x[n_generators:2 * n_generators]
-            delta_P[self.loads] = sol.x[2 * n_generators::]
-            load_shed = np.sum(delta_P[self.loads])
-            self.P_fast += delta_P
+            self.delta_P = np.zeros(len(self.P_fast))
+            self.delta_P[self.generators] = sol.x[0:n_generators] + sol.x[n_generators:2 * n_generators]
+            self.delta_P[self.loads] = sol.x[2 * n_generators::]
+            load_shed = np.sum(self.delta_P[self.loads])
+            self.P_fast += self.delta_P
 
             # In this addition floating point errors occur if delta_P[i] = -self.P[i].
             # If this happens loads can have positive and generators negative power which causes errors.
@@ -298,10 +298,6 @@ class Network:
 
             self.F = A.dot(self.P_fast)
             self.M = np.abs(self.F) / self.F_max
-            # TODO: HIER!!!
-            # for value in self.M:
-            #     if value > 1:
-            #         print("OVERLOAD AFTER REDISPATCH ------------->", value)
         else:
             load_shed = 0
         return sol.success, load_shed
@@ -310,9 +306,8 @@ class Network:
         """
         Improve lines which failed
         """
-        for lines in failed_lines:
-            for line in lines:
-                self.F_max[line] *= self.mu
+        for line in failed_lines:
+            self.F_max[line] *= self.mu
 
     def solar_panels(self):
         """
@@ -355,7 +350,9 @@ class Network:
         self.plot_network(function = "process", title = "b_initial_failure", failed_lines_plot = line_ids)
 
         while len(line_ids) > 0:
-            failed_lines.append(line_ids)
+            for line_id in line_ids:
+                if line_id not in failed_lines:
+                    failed_lines.append(line_id)
             self.F_max_fast[line_ids] = 0.
 
             """
@@ -435,16 +432,13 @@ class Network:
                 x = np.append(x, np.cos(angles) * i)
                 y = np.append(y, np.sin(angles) * i)
 
-                # todo
-                if self.P_fast[i] > 0:
-                    load_fraction_failed = 0
-                else:
-                    load_fraction_failed = 0
-                # TODO: dit klopt niet! Load fraction berekenen.
-                if abs(load_fraction_failed) > 0.95:
-                    plt.scatter(x, y, c='k', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
-                else:
-                    plt.scatter(x, y, c='g', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
+                # # todo
+                # if self.delta_P[i] > 0 and self.P_fast[i] < 0 and self.P_fast[i] + self.delta_P[i] < 0.005:
+                    
+                #     # this should be black, because 
+                #     plt.scatter(x, y, c='k', edgecolors = 'k', linewidths=1, zorder=1, s = 120)
+                # else:
+                #     plt.scatter(x, y, c='g', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
 
             for i, l in enumerate(self.lines):
                 x_line = [x[l[0]], x[l[1]]]
@@ -457,7 +451,7 @@ class Network:
                     else:
                         plt.plot(x_line, y_line, c = self.get_linecolor(i), zorder=0, linewidth = 1 + 2 * (self.F_max[i] / self.maximal_F))
 
-
+            # hier die forloop zetten
             # plt.scatter(x, y, c='g', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
             plt.scatter(x[self.generators], y[self.generators], c='w', edgecolors = 'g', linewidths=1, zorder=2, s = 120)
             plt.title(label = title + " day " + str(self.day))
@@ -468,7 +462,7 @@ class Network:
         # colors0 = cm.get_cmap("Greens")
         # colors1 = cm.get_cmap("Reds")
         overflow = self.M[line_number]
-        if overflow < 1:
+        if overflow <= 0.99:
             return "g"
         else:
             return "r"
@@ -524,6 +518,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.hist(all_failed_lines, log = True)
         plt.xlabel(xlabel = "Nr of failed lines")
         plt.ylabel(ylabel = "Frequency")
+        plt.savefig("frequency_failedlines_hist.jpg")
         plt.show()
 
         line_outages = [0] * 94
@@ -534,6 +529,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.xlabel(xlabel = 'Nr of failed lines')
         plt.ylabel(ylabel = 'Nr of events')
         plt.grid(b = True)
+        plt.savefig("Nrevents_failedlines.jpg")
         plt.show()
 
         x_outages = []
@@ -553,6 +549,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.xscale("log")
         plt.yscale("log")
         plt.grid(b = True)
+        plt.savefig("probability_failedlines_log.jpg")
         plt.show()
 
         plt.hist(shedded_loads, density = True)
@@ -569,6 +566,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.ylabel(ylabel = "Frequency")
         plt.xticks((1e-2, 1e-1, 1))
         plt.grid(b = True)
+        plt.savefig("frequency_loadshed_log.jpg")
         plt.show()
 
 
