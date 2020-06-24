@@ -437,8 +437,8 @@ class Network:
 
                 # # todo
                 # if self.delta_P[i] > 0 and self.P_fast[i] < 0 and self.P_fast[i] + self.delta_P[i] < 0.005:
-                    
-                #     # this should be black, because 
+
+                #     # this should be black, because
                 #     plt.scatter(x, y, c='k', edgecolors = 'k', linewidths=1, zorder=1, s = 120)
                 # else:
                 #     plt.scatter(x, y, c='g', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
@@ -509,7 +509,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
             print('failed lines:', lines)
             print('load shed:', load_shed)
             print(np.mean(np.abs(N.P_slow)), np.mean(N.M))
-            
+
         B = N.b_with_outages(N.B, [])
         failed_lines_file = open(EXPERIMENT_NAME + "/flines_simulation_" + str(i) + ".txt", 'w')
         failed_lines_file.write(str(all_failed_lines))
@@ -522,7 +522,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
 
         # hist, bins, _ = plt.hist(all_failed_lines)
 
-        # # histogram on log scale. 
+        # # histogram on log scale.
         # # Use non-equal bin sizes, such that they look equal on log scale.
         # logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
         # plt.show()
@@ -567,7 +567,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.show()
 
         n = 20
-        p, x = np.histogram(N.load_shed, bins=n)
+        p, x = np.histogram(N.load_shed, bins=np.logspace(-2, 0, n))
         x = x[:-1] + (x[1] - x[0])/2   # convert bin edges to centers
         f = UnivariateSpline(x, p, s=n)
         plt.plot(x, f(x))
