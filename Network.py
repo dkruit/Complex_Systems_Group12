@@ -1,10 +1,11 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import linprog
+from scipy.interpolate import UnivariateSpline
 import random
 
 class Network:
-    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.5, labda=(1.00005, 1.1),
+    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.2, labda=(1.00005, 1.005),
                  cost_weights=(1, 100), mu=1.005):
         """
         Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
@@ -47,6 +48,10 @@ class Network:
                                          -cost_weights[0] * np.ones(len(self.generators)),
                                          cost_weights[1] * np.ones(len(self.loads))),
                                         axis=0)
+
+        # Vector to store results
+        self.load_shed = []
+        self.n_failed = []
 
     ####################################################################################################################
     # Functions for initialization
@@ -172,7 +177,8 @@ class Network:
         """
         Update P using lambda
         """
-        l = np.random.uniform(self.labda[0]/self.labda[1], self.labda[0]*self.labda[1])
+        l = np.random.uniform(self.labda[0], self.labda[0]*self.labda[1]) ** np.random.choice([-1, 1])
+        print('l', l)
         self.P_slow *= l
         self.P_max *= l
 
@@ -350,7 +356,9 @@ class Network:
                 line_ids = []
 
         self.improve_lines(failed_lines)
-
+        if len(failed_lines) > 0:
+            self.load_shed.append(load_shed_today / np.sum(self.P_slow[self.generators]))
+            self.n_failed.append(len(failed_lines))
         return failed_lines, load_shed_today
 
     ####################################################################################################################
@@ -392,15 +400,25 @@ class Network:
 N = Network(6, 2)
 # N.report_params()
 # N.solar_panels()
-for i in range(100):
+for i in range(5000):
     print('\nday', i)
     lines, load_shed = N.simulate_day()
     print('failed lines:', lines)
     print('load shed:', load_shed)
+    print('power', -np.sum(N.P_slow[N.loads]))
     print(np.mean(np.abs(N.P_slow)), np.mean(N.M))
     # if a == 1:
         # break
-B = N.b_with_outages(N.B, [])
-# print(N.B)
-# print(' ')
-# print((B))
+
+plt.hist(N.n_failed)
+plt.show()
+
+n = 20
+p, x = np.histogram(N.load_shed, bins=n)
+x = x[:-1] + (x[1] - x[0])/2   # convert bin edges to centers
+f = UnivariateSpline(x, p, s=n)
+plt.plot(x, f(x))
+plt.xscale('log')
+plt.yscale('log')
+plt.xticks((1e-2, 1e-1, 1))
+plt.show()
