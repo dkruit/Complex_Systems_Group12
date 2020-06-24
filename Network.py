@@ -4,6 +4,7 @@ from scipy.optimize import linprog
 from scipy.interpolate import UnivariateSpline
 import random
 
+
 class Network:
     def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.2, labda=(1.00005, 1.005),
                  cost_weights=(1, 100), mu=1.005):
@@ -397,10 +398,11 @@ class Network:
         plt.show()
 
 
-N = Network(6, 2)
+print(np.logspace(-2, 0, 20))
+N = Network(6, 3)
 # N.report_params()
 # N.solar_panels()
-for i in range(5000):
+for i in range(1000):
     print('\nday', i)
     lines, load_shed = N.simulate_day()
     print('failed lines:', lines)
@@ -413,11 +415,12 @@ for i in range(5000):
 plt.hist(N.n_failed)
 plt.show()
 
-n = 20
-p, x = np.histogram(N.load_shed, bins=n)
+n = 25
+p, x = np.histogram(N.load_shed, bins=np.logspace(-2, 0, 20), density=True)
 x = x[:-1] + (x[1] - x[0])/2   # convert bin edges to centers
 f = UnivariateSpline(x, p, s=n)
 plt.plot(x, f(x))
+# plt.hist(N.load_shed)
 plt.xscale('log')
 plt.yscale('log')
 plt.xticks((1e-2, 1e-1, 1))
