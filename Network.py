@@ -9,15 +9,15 @@ import csv
 N_LAYERS = 6
 GEN_LAYER = 3
 N_SIMS = 1
-N_DAYS = 20
+N_DAYS = 1000
 NETWORK_FIGS = False
 PLOT_FIGS = True
-EXPERIMENT_NAME = "test_Maria"
+EXPERIMENT_NAME = "test_25_9"
 
 
 class Network:
     def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=1.2, labda=(1.00005, 1.005),
-                 cost_weights=(1, 100), mu=1.005):
+                 cost_weights=(1, 100), mu=1.0005):
         """
         Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
         nodes.
@@ -72,6 +72,8 @@ class Network:
         self.store_P = []
         self.store_P_redispatched = []
         self.delta_P = np.zeros(len(self.P_fast))
+        self.M_all_average = []
+        self.M_line_average = []
 
         # Vector to store results
         self.load_shed = []
@@ -388,6 +390,9 @@ class Network:
             self.n_failed.append(len(failed_lines))
         self.plot_network(function = "process", title = "c_after_redispatch", failed_lines_plot = failed_lines)
         self.day += 1
+        if PLOT_FIGS:
+            self.M_all_average.append(np.mean(self.M))
+            self.M_line_average.append(self.M)
         return failed_lines, load_shed_today
 
     ####################################################################################################################
@@ -457,6 +462,11 @@ class Network:
 
             # hier die forloop zetten
             # plt.scatter(x, y, c='g', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
+            for i in range(0, len(x)):
+                if self.delta_P[i] > 0 and self.P_slow[i] < 0 and self.P_slow[i] + self.delta_P[i] < 0.005:
+                    plt.scatter(x[i], y[i], c = 'k', edgecolors = 'k', linewidths = 1, zorder = 1, s = 120)
+                else:
+                    plt.scatter(x[i], y[i], c = 'g', edgecolors = 'g', linewidths = 1, zorder = 1, s = 120)
             plt.scatter(x[self.generators], y[self.generators], c='w', edgecolors = 'g', linewidths=1, zorder=2, s = 120)
             plt.title(label = title + " day " + str(self.day))
             plt.savefig(EXPERIMENT_NAME + "/day" + str(self.day) + title + ".jpg")
@@ -501,6 +511,8 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         print('\nsimulation', i)
         N = Network(nr_layers, generator_layer)
         for j in range(n_days):
+            if j % 100 == 0:
+                print("SIM DAY---------------------------------------------------------------------->", j)
             lines, load_shed = N.simulate_day()
             if len(lines) > 0:
                 all_failed_lines.append(len(lines))
@@ -518,6 +530,19 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         shedded_loads_file = open(EXPERIMENT_NAME + "/shedded_simulation_" + str(i) + ".txt", 'w')
         shedded_loads_file.write(str(shedded_loads))
         shedded_loads_file.close()
+
+        shedded_file = open(EXPERIMENT_NAME + "/N_load_shed_" + str(i) + ".txt", 'w')
+        shedded_file.write(str(N.load_shed))
+        shedded_file.close()
+
+        mean_M = open(EXPERIMENT_NAME + "/mean_M" + str(i) + ".txt", 'w')
+        mean_M.write(str(N.M_all_average))
+        mean_M.close()
+
+        mean_M_line = open(EXPERIMENT_NAME + "/mean_M_line" + str(i) + ".txt", 'w')
+        for row in N.M_line_average:
+            mean_M_line.write(str(row))
+        mean_M_line.close()
 
     if PLOT_FIGS:
 
@@ -565,7 +590,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.close()
 
         plt.hist(shedded_loads, density = True)
-        plt.xlabel(xlabel = "Load shed")
+        plt.xlabel(xlabel = "Fraction of load shedded")
         plt.ylabel(ylabel = "Probability")
         plt.savefig(EXPERIMENT_NAME + "/hist_sheddedloads.jpg")
         plt.close()
@@ -577,7 +602,7 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         plt.plot(x, f(x))
         plt.xscale('log')
         plt.yscale('log')
-        plt.xlabel(xlabel = "Load shed")
+        plt.xlabel(xlabel = "Fraction of load shedded")
         plt.ylabel(ylabel = "Frequency")
         plt.xticks((1e-2, 1e-1, 1))
         plt.grid(b = True)
