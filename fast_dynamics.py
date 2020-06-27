@@ -26,6 +26,16 @@ days = 1
 F_0, A, P_0, daily_lambda, max_F = initialize_model(n_buses, max_P_gen, layers, gen_layer, max_lambda, days)
 
 def simulation(days, A, P_0, daily_lambda, max_F, F_0):
+    '''
+    PARAMETERS:
+    days: number of simulating days
+    A: matrix which represents the network constraints
+    P_0: The power injection on day 0
+    daily_lambda: daily multiplication, it represents a slowly increasing secular load
+    max_F: The limit of flow
+    F_0: The flow on day 0
+
+    '''
 
     mean_P_load = []
     mean_P_gen = []
@@ -50,7 +60,7 @@ def simulation(days, A, P_0, daily_lambda, max_F, F_0):
 
         #Check if outaged and overloaded
         for i in range(len(P_outaged)):
-            
+
         print("P_outaged is {},\n P_overload is {},\n".format(P_outaged,P_overload))
 
 

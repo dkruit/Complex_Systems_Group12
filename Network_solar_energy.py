@@ -10,12 +10,17 @@ class Network:
         """
         Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
         nodes.
-        :param n_layers: Number of layers
-        :param generator_layer: Layer which contains the generators
-        :param generator_P_max: Maximum power of one generator
-        :param margin_F_max: F_max on day 0 is F_0 * margin_F_max
-        :param labda: Mean and standard deviation of average daily power change
-        :param cost_weights: Weight for generation and load shed
+
+        PARAMETERS :
+
+        n_layers: Number of layers
+        generator_layer: Layer which contains the generators
+        generator_P_max: Maximum power of one generator
+        margin_F_max: F_max on day 0 is F_0 * margin_F_max
+        labda: Daily power change, uniformly distributed between labda[0]/labda[1] and labda[0]*labda[1]
+        cost_weights: Weight for generation and load shed
+        mu: Line improvement factor
+
         """
         # Set parameters
         self.labda = labda
@@ -50,7 +55,17 @@ class Network:
     # Functions for initialization
     ####################################################################################################################
     def make_buses(self):
-        #  Compute the number of nodes per layer
+        '''
+        Compute the number of nodes per layer
+
+        RETURNS:
+
+        n_nodes: Total number of nodes
+        nodes_per_layer: List with the numbers of nodes per layer
+        nodes_in_layer: List with the total number of nodes up to each layer
+
+        '''
+
         if self.n_layers == 1:
             nodes_per_layer = [1, ]
         elif self.n_layers == 2:
@@ -73,8 +88,13 @@ class Network:
         return n_nodes, nodes_per_layer, nodes_in_layer
 
     def make_lines(self):
-        #  Make lines between nodes
-        #  First layer
+        '''
+        Make lines between nodes
+
+        RETURN:
+        lines: List with tuples with the indices of the nodes that are connected with lines
+        '''
+        #First layer
         lines = [[0, 1], [0, 2], [0, 3]]
 
         #  Additional layers
@@ -97,6 +117,9 @@ class Network:
     def adjacency_matrix(self):
         """
         Compute adjacency matrix
+
+        RETURN:
+        M: adjacency matrix
         """
         M = np.zeros([self.n_nodes, self.n_nodes])
         for c in self.lines:
@@ -106,8 +129,10 @@ class Network:
 
     def matrix_b(self, adjacency_matrix):
         """
-        Computes the adjacency matrix. For now uses susceptence of 1 for all lines.
-        :return:
+        A matrix which its bij element is the susceptence of the transmission line joining bus i,j.
+
+        RETURN:
+        B: Matrix with susceptence of all lines = 1
         """
         diagonal = np.sum(adjacency_matrix, axis=1)
         B = np.diag(diagonal) - adjacency_matrix
@@ -116,9 +141,13 @@ class Network:
     def b_with_outages(self, B, connected_nodes):
         """
         When lines break this affects B, this function returns B accounted for broken lines
-        :param B: Previous matrix B
-        :param connected_nodes: List containing a list with connected nodes for each line: [[0,1], [6,34],.. , [18, 28]]
-        :return: Updated version of B where broken lines are taken into account
+
+        PARAMETERS:
+        B: Previous matrix B
+        connected_nodes: List containing a list with connected nodes for each line: [[0,1], [6,34],.. , [18, 28]]
+
+        RETURN:
+        new_B: Updated version of B where broken lines are taken into account
         """
         new_B = np.array(B)
         for nodes in connected_nodes:
@@ -132,9 +161,17 @@ class Network:
 
     def matrix_a(self, B):
         """
-        Generates the matrix A given a list of lines and the corresponding susceptence matrix B
-        :return: matrix A
+        A = NX
+        N = the flow on the transmission line connecting bus i to j
+        X = inv(B)
+
+        PARAMETERS:
+        B: susceptence matrix
+
+        RETURN:
+        A: matrix
         """
+
         m = len(self.lines)
 
         X = np.linalg.inv(B)
@@ -148,6 +185,13 @@ class Network:
         return A
 
     def set_p0(self, max_generator_power):
+        '''
+        PARAMETERS:
+        max_generator_power: maximum power limit
+
+        RETURN:
+        power: initial real power injection of a generator
+        '''
         n_generators = len(self.generators)
         n_loads = self.n_nodes - n_generators
         max_load_power = max_generator_power * n_generators / n_loads
@@ -177,6 +221,11 @@ class Network:
     def h0(self, overload_fraction):
         """
         Compute probability of initial failure
+        PARAMETERS:
+        overload_fraction:
+
+        RETURN:
+
         """
         return 0.01 * overload_fraction**2
 
@@ -189,7 +238,10 @@ class Network:
     def initial_failures(self):
         """
         Compute initial failures using h0
-        :return: List of ids and connected nodes of failed lines
+        RETURNS:
+        line_indices: a list with the ids of failed lines
+        connected_nodes: a list of coonected nodes of failed lines
+
         """
         line_indices = []
         connected_nodes = []
@@ -204,7 +256,10 @@ class Network:
     def overload_failures(self):
         """
         Compute secondary failures due to overload
-        :return: List of failed lines
+        RETURNS:
+        line_indices: list with the ids of failed lines
+        connected_nodes: list with the connected nodes
+
         """
         line_indices = []
         connected_nodes = []
@@ -223,7 +278,14 @@ class Network:
         Delta_P for the generators is placed in front of loads split in positive and negative part:
         delta_P = [gen_1+, gen_2+ ... gen_n+, gen_1-, gen_2- ... gen_n-, load_1, load_2 ... load_m] for n generators
         and m loads.
-        :return: Flow trough lines
+
+        PARAMETER:
+        A: matrix
+
+        RETURNS:
+        sol.success: bool, true if the linprog algorith succeeds in finding an optimal solution
+        load_shed: Flow trough lines
+
         """
         # Compute flows without redispatching power
         F = A.dot(self.P)
@@ -274,6 +336,10 @@ class Network:
     def improve_lines(self, failed_lines):
         """
         Improve lines which failed
+
+        PARAMETER:
+        failed_lines: the indices of failed lines
+
         """
         for line in failed_lines:
             self.F_max[line] *= self.mu
@@ -299,7 +365,12 @@ class Network:
     def simulate_day(self):
         """
         Function to simulate a day
+
+        RETURNS:
+        failed_lines: The ids of failed lines at the end of the day
+        load_shed_today: The shedding load of the day
         """
+
         # Copy of adjacency matrix where outages lines will be removed
 
         # Slow dynamics
@@ -330,6 +401,15 @@ class Network:
     # Functions for visualization and representation
     ####################################################################################################################
     def report_params(self):
+        '''
+        RETURNS:
+        The number of nodes
+        The number of generators
+        THe number of loads
+        The power levels
+        The flow
+        The overload fraction
+        '''
         print('Number of nodes:', self.n_nodes)
         print('Number of generators:', len(self.generators))
         print('Number of loads:', len(self.loads))
@@ -340,7 +420,11 @@ class Network:
     def plot_network(self):
         """
         Plots the network with lines in black, generators in red and loads in green
+
+        RETURN:
+        Figure with the network
         """
+
         x = np.array([])
         y = np.array([])
         for i in range(len(self.nodes_in_layer)):
@@ -361,17 +445,11 @@ class Network:
         plt.scatter(x[self.generators], y[self.generators], c='r', linewidths=5, zorder=2)
         plt.show()
 
-
 N = Network(6, 2)
-# N.report_params()
+
 N.solar_panels()
 for i in range(100):
     print('day', i)
     lines = N.simulate_day()
     print('failed lines:', lines)
-    # if a == 1:
-        # break
 B = N.b_with_outages(N.B, [])
-# print(N.B)
-# print(' ')
-# print((B))

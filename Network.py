@@ -27,6 +27,7 @@ class Network:
         :param labda: Daily power change is a ubiform distribution between labda[0]/labda[1] and labda[0]*labda[1]
         :param cost_weights: Weight for generation and load shed
         """
+        
         # Set parameters
         self.labda = labda
         self.mu = mu

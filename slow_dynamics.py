@@ -9,27 +9,24 @@ ABS_FLOW = []
 MAX_FLOW = []
 MAX_OVERLOAD = []
 
-# variables
-n_buses = 94
-max_P_gen = 10
-
-# total nr of layers in the network
-layers = 6
-
-# the layer at which the generators will be placed
-gen_layer = 3
-
-# average power increase per day
-lambda_increase = 0.0005
-mean_lambda = 1 + lambda_increase
-max_lambda = 1 + 2 * lambda_increase
-
-# the nr of days for the simulation
-days = 3
-
-
 def initialize_model(n_buses, max_P_gen, layers, gen_layer, max_lambda, days):
+	'''
+	PARAMETERS:
+	n_buses: number of buses
+	max_P_gen:
+	layers: Total number of layers in the network
+	gen_layer: The layer at which the generators will be placed
+	max_lambda: The maximum value of lambda
+	days: The number of days for the simulation
 
+	RETURNS:
+	F_0: The flow on day 0
+	A: matrix which represents the network constraints
+	P_0: The power injection on day 0
+	daily_lambda: daily multiplication, it represents a slowly increasing secular load
+	max_F: The limit of flow
+
+	'''
 	# create the network and matrix A
 	N = Network(layers, gen_layer)
 	# print(N.A)
@@ -51,53 +48,44 @@ def initialize_model(n_buses, max_P_gen, layers, gen_layer, max_lambda, days):
 
 	daily_lambda = (max_lambda - 1) * np.random.random_sample(days) + 1
 
-
 	return F_0, A, P_0, daily_lambda, max_F
 
-
-F_0, A, P_0, daily_lambda, max_F = initialize_model(n_buses, max_P_gen, layers, gen_layer, max_lambda, days)
-
 def simulation(days, A, P_0, daily_lambda, max_F, F_0):
+	'''
+	PARAMETERS:
+	days:  The number of days for the simulation
+	A: matrix which represents the network constraints
+	P_0: The power injection on day 0
+	daily_lambda: daily multiplication, it represents a slowly increasing secular load
+	F_0: The flow on day 0
+	max_F: The limit of flow
+
+
+	'''
 
 	mean_P_load = []
 	mean_P_gen = []
 	max_flow_gen = []
 
-
 	P_k = P_0
-
 
 	for k in range(days):
 
 		# increase the power in the buses with lambda and update flow
 		P_k = P_k * daily_lambda[k]
 		F_k = A.dot(P_k)
-		# print("P_k is {}, F_k is {}".format(P_k,F_k))
-
-		# below this is all to see if the parameters are good
-		# P_load = []
-		# P_gen = []
-		# for value in P_k:
-		# 	if value <= 0:
-		# 		P_load.append(value)
-		# 	else:
-		# 		P_gen.append(value)
-		# mean_P_load.append(np.mean(P_load))
-		# mean_P_gen.append(np.mean(P_gen))
-		# ABS_FLOW.append(np.mean([abs(flow) for flow in F_k]))
-		# MAX_FLOW.append(np.max([abs(flow) for flow in F_k]))
-		# M_k = [abs(flow/max_F[i]) for i, flow in enumerate(F_k)]
-		# MAX_OVERLOAD.append(np.max(M_k))
 
 
+if __name__ == '__main__':
+	n_buses = 94
+	max_P_gen = 10
+	layers = 6
+	gen_layer = 3
 
-	# plot the flow and overload values to tune params
-	# plt.plot(range(0, len(ABS_FLOW)), ABS_FLOW, label = "mean")
-	# plt.plot(range(0, len(MAX_FLOW)), MAX_FLOW, label = "max")
-	# plt.legend()
-	# plt.show()
-	# plt.plot(range(0, len(MAX_OVERLOAD)), MAX_OVERLOAD, label = "max overload")
-	# plt.legend()
-	# plt.show()
+	lambda_increase = 0.0005
+	mean_lambda = 1 + lambda_increase
+	max_lambda = 1 + 2 * lambda_increase
 
-simulation(days, A, P_0, daily_lambda, max_F, F_0)
+	days = 3
+	F_0, A, P_0, daily_lambda, max_F = initialize_model(n_buses, max_P_gen, layers, gen_layer, max_lambda, days)
+    simulation(days, A, P_0, daily_lambda, max_F, F_0)
