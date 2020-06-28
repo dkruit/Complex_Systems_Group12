@@ -8,6 +8,29 @@ We will implement the ORNL-PSerc-Alaska (OPL) model [3,4]. This model was design
 
 We first aim to implement the model and replicate results in papers [4] and [5]. Then we want to add a large stabilizing battery to the network and compare the network with and without battery.
 
+## Running the simulation
+To run the simulation, set the parameters as desired in 'Network.py'.
+Important note: in order to reduce the running time, the default parameters are now set to running 2 experiments for 500 days, instead of 10 experiments for 1000 days.
+The data and figures will be saved into a map with name 'EXPERIMENT_NAME'.
+The following data will be saved per simulation i:
+- flines_simulation_i: the total number of lines that failed per event;
+- mean_M_linei: the fractional overload M per line per day;
+- mean_Mi: the average fractional overload M of all lines per day;
+- N_load_shed_i: the fractional load shedded per event.
+
+If PLOT_FIGS = True, the following figures will be saved per simulation i:
+- frequency_failedlines_hist_i: a histogram of the number of failed lines per event on log linear scale
+- frequency_loadshed_log_i: the frequency of the shedded load on a log log scale
+- Nrevents_failedlines_i: nr of events with nr of failed lines on a linear scale
+- probability_failedlines_log_i: probability density function of the number of failed lines per event on a log log scale
+
+These plots are all plots without error bars. In order to create plots with error bars, fun the file 'fline_plot.py'.
+
+If NETWORK_FIGS = True, the following figures will be saved per simulation day i (and overwritten every new simulation, since this function is only for visualization):
+- day_i_a_updated_p: the network after updating p;
+- day_i_b_initial_failure: the network after the initial failures;
+- day_i_c_after_redispatch: the network after each redispatchment loop.
+
 
 ## References
 1. BBC.com, "Tesla mega-battery in Australia activated", 1 December 2017. Url: [link](https://www.bbc.com/news/world-australia-42190358 "https://www.bbc.com/news/world-australia-42190358")
