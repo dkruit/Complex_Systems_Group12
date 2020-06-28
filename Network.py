@@ -13,10 +13,12 @@ N_DAYS = 1000
 NETWORK_FIGS = False
 PLOT_FIGS = True
 EXPERIMENT_NAME = "test_25_14_1000times10_"
+SOLAR_PANELS = 'add'
 
 
 class Network:
-    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=2, labda=(1.00005, 1.005), cost_weights=(1, 100), mu=1.0005, solar_panels=None):
+    def __init__(self, n_layers, generator_layer=0, generator_P_max=10, margin_F_max=2, labda=(1.00005, 1.005),
+                 cost_weights=(1, 100), mu=1.0005, solar_panels=None):
         """
         Make a network with a certain number of layers. A layer is a cirkel around the previous layer with twice as many
         nodes.
@@ -25,7 +27,10 @@ class Network:
         :param generator_P_max: Maximum power of one generator
         :param margin_F_max: F_max on day 0 is F_0 * margin_F_max
         :param labda: Daily power change is a ubiform distribution between labda[0]/labda[1] and labda[0]*labda[1]
-        :param cost_weights: Weight for generation and load shed
+        :param cost_weights: Weight for change generation and load shed
+        :param mu: Factor by which failed lines are improved at the end of a day
+        :param solar_panels: Can be None for no solar panels, 'add' to add solar panel capacity to the system and
+        'replace' to reduce generator capacity by the added solar panel capacity.
         """
         
         # Set parameters
@@ -409,25 +414,6 @@ class Network:
         """
         Plots the network with lines in black, generators in red and loads in green
         """
-        # x = np.array([])
-        # y = np.array([])
-        # for i in range(len(self.nodes_in_layer)):
-        #    b = range(self.nodes_in_layer[i][0], self.nodes_in_layer[i][1])
-        #    n_buses = len(b)
-
-        #    angles = np.linspace(0, 2.*np.pi, n_buses+1) + np.pi/n_buses
-        #    angles = np.delete(angles, n_buses)
-        #    x = np.append(x, np.cos(angles) * i)
-        #    y = np.append(y, np.sin(angles) * i)
-
-        # for l in self.lines:
-        #    x_line = [x[l[0]], x[l[1]]]
-        #    y_line = [y[l[0]], y[l[1]]]
-        #    plt.plot(x_line, y_line, c='black', zorder=0)
-
-        # plt.scatter(x, y, c='g', linewidths=5, zorder=1)
-        # plt.scatter(x[self.generators], y[self.generators], c='r', linewidths=5, zorder=2)
-        # plt.show()
         if NETWORK_FIGS:
             x = np.array([])
             y = np.array([])
@@ -440,14 +426,6 @@ class Network:
                 x = np.append(x, np.cos(angles) * i)
                 y = np.append(y, np.sin(angles) * i)
 
-                # # todo
-                # if self.delta_P[i] > 0 and self.P_fast[i] < 0 and self.P_fast[i] + self.delta_P[i] < 0.005:
-
-                #    # this should be black, because
-                #    plt.scatter(x, y, c='k', edgecolors = 'k', linewidths=1, zorder=1, s = 120)
-                # else:
-                #    plt.scatter(x, y, c='g', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
-
             for i, l in enumerate(self.lines):
                 x_line = [x[l[0]], x[l[1]]]
                 y_line = [y[l[0]], y[l[1]]]
@@ -459,8 +437,6 @@ class Network:
                     else:
                         plt.plot(x_line, y_line, c = self.get_linecolor(i), zorder=0, linewidth = 1 + 2 * (self.F_max[i] / self.maximal_F))
 
-            # hier die forloop zetten
-            # plt.scatter(x, y, c='g', edgecolors = 'g', linewidths=1, zorder=1, s = 120)
             for i in range(0, len(x)):
                 if self.delta_P[i] > 0 and self.P_slow[i] < 0 and self.P_slow[i] + self.delta_P[i] < 0.005:
                     plt.scatter(x[i], y[i], c = 'k', edgecolors = 'k', linewidths = 1, zorder = 1, s = 120)
@@ -472,8 +448,6 @@ class Network:
             plt.close()
 
     def get_linecolor(self, line_number):
-        # colors0 = cm.get_cmap("Greens")
-        # colors1 = cm.get_cmap("Reds")
         overflow = self.M[line_number]
         if overflow <= 0.99:
             return "g"
@@ -481,31 +455,14 @@ class Network:
             return "r"
 
 
-# N = Network(6, 2)
-# # N.report_params()
-# # N.solar_panels()
-# for i in range(5000):
-#    print('\nday', i)
-#    lines, load_shed = N.simulate_day()
-#    print('failed lines:', lines)
-#    print('load shed:', load_shed)
-#    print('power', -np.sum(N.P_slow[N.loads]))
-#    print(np.mean(np.abs(N.P_slow)), np.mean(N.M))
-#    # if a == 1:
-#       # break
-
-# plt.hist(N.n_failed)
-# plt.show()
-
-
-def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
+def start_simulation(nr_layers, generator_layer, n_simulations, n_days, solar_panels):
     if not os.path.exists(EXPERIMENT_NAME):
         os.makedirs(EXPERIMENT_NAME)
     for i in range(n_simulations):
         all_failed_lines = []
         shedded_loads = []
         print('\nsimulation', i)
-        N = Network(nr_layers, generator_layer, solar_panels='add')
+        N = Network(nr_layers, generator_layer, solar_panels='solar_panels')
         for j in range(n_days):
             if j % 100 == 0:
                 print("SIM DAY---------------------------------------------------------------------->", j)
@@ -541,13 +498,6 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
         mean_M_line.close()
 
         if PLOT_FIGS:
-
-            # hist, bins, _ = plt.hist(all_failed_lines)
-
-            # # histogram on log scale.
-            # # Use non-equal bin sizes, such that they look equal on log scale.
-            # logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
-            # plt.show()
             plt.hist(all_failed_lines, log = True)
             plt.xlabel(xlabel = "Nr of failed lines")
             plt.ylabel(ylabel = "Frequency")
@@ -606,4 +556,4 @@ def start_simulation(nr_layers, generator_layer, n_simulations, n_days):
             plt.close()
 
 
-start_simulation(N_LAYERS, GEN_LAYER, N_SIMS, N_DAYS)
+start_simulation(N_LAYERS, GEN_LAYER, N_SIMS, N_DAYS, SOLAR_PANELS)
